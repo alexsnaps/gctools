@@ -14,7 +14,11 @@ class TestOOBGC < Minitest::Test
     assert_equal false, GC::OOB.setup?
     assert_equal true, GC::OOB.teardown
     assert_equal false, GC::OOB.setup?
+  end
 
+  def test_run_returns_false_when_not_setup
+    assert_equal false, GC::OOB.setup?
+    assert_equal false, GC::OOB.run
   end
 
   # def setup

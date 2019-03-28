@@ -125,7 +125,7 @@ static VALUE
 oobgc(VALUE self)
 {
   size_t curr = rb_gc_stat(sym_total_allocated_objects);
-  if (!_oobgc.installed) install();
+  if (!_oobgc.installed) return Qfalse;
 
   if (!_oobgc.prev_allocated_object) {
     _oobgc.prev_allocated_object = curr;
