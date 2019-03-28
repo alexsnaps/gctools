@@ -32,7 +32,7 @@ struct {
 } _oobgc;
 
 static VALUE mOOB;
-static VALUE sym_total_allocated_objects, sym_heap_swept_slots, sym_heap_tomb_pages, sym_heap_final_slots;
+static VALUE sym_total_allocated_objects, sym_heap_tomb_pages, sym_heap_final_slots, sym_heap_free_slots;
 static VALUE sym_old_objects, sym_old_objects_limit, sym_remembered_wb_unprotected_objects, sym_remembered_wb_unprotected_objects_limit;
 static VALUE sym_major_by, sym_count, sym_major_count, sym_minor_count, sym_sweep_count, minor_gc_args;
 static    ID id_start;
@@ -51,16 +51,16 @@ gc_event_i(VALUE tpval, void *data)
       break;
 
     case RUBY_INTERNAL_EVENT_GC_END_MARK:
-      _oobgc.sweep_needed = 1;
+      _oobgc.sweep_needed = 1; // Probably want to do math here, all might have been in theap
       break;
 
     case RUBY_INTERNAL_EVENT_GC_END_SWEEP:
       _oobgc.sweep_needed = 0;
       _oobgc.allocation_limit =
-        _oobgc.start.total_allocated_objects +
-        rb_gc_stat(sym_heap_swept_slots) +
-        (rb_gc_stat(sym_heap_tomb_pages) * _oobgc.heap_obj_limit) -
-        rb_gc_stat(sym_heap_final_slots);
+        _oobgc.start.total_allocated_objects + // allocated objects at EVENT_GC_START
+        rb_gc_stat(sym_heap_free_slots) + // free slots
+        (rb_gc_stat(sym_heap_tomb_pages) * _oobgc.heap_obj_limit) - // number of slots in all free pages
+        rb_gc_stat(sym_heap_final_slots); // zombie objects
       break;
   }
 }
@@ -142,12 +142,12 @@ oobgc(VALUE self)
     if ((rb_gc_stat(sym_old_objects) >= rb_gc_stat(sym_old_objects_limit)*0.97 ||
         rb_gc_stat(sym_remembered_wb_unprotected_objects) >= rb_gc_stat(sym_remembered_wb_unprotected_objects_limit)*0.97) &&
         curr >= _oobgc.allocation_limit - _oobgc.threshold.max*0.98) {
-      /*fprintf(stderr, "oobgc MAJOR: %zu >= %zu - %zu\n", curr, _oobgc.allocation_limit, _oobgc.threshold.max);*/
+      // fprintf(stderr, "oobgc MAJOR: %zu >= %zu - %zu\n", curr, _oobgc.allocation_limit, _oobgc.threshold.max);
       gc_start_major();
       return Qtrue;
 
     } else if (curr >= _oobgc.allocation_limit - _oobgc.threshold.mean) {
-      /*fprintf(stderr, "oobgc minor: %zu >= %zu - %zu\n", curr, _oobgc.allocation_limit, _oobgc.threshold.mean);*/
+      // fprintf(stderr, "oobgc minor: %zu >= %zu - %zu\n", curr, _oobgc.allocation_limit, _oobgc.threshold.mean);
       gc_start_minor();
       return Qtrue;
     }
@@ -185,7 +185,7 @@ void
 Init_oobgc()
 {
   mOOB = rb_define_module_under(rb_mGC, "OOB");
-  rb_autoload(mOOB, rb_intern_const("UnicornMiddleware"), "gctools/oobgc/unicorn_middleware.rb");
+  // rb_autoload(mOOB, rb_intern_const("UnicornMiddleware"), "gctools/oobgc/unicorn_middleware.rb");
 
   rb_define_singleton_method(mOOB, "setup", install, 0);
   rb_define_singleton_method(mOOB, "run", oobgc, 0);
@@ -198,7 +198,7 @@ Init_oobgc()
   #define S(name, legacy_name) sym_##name = ID2SYM(rb_intern(#name))
 #endif
   S(total_allocated_objects, total_allocated_object);
-  S(heap_swept_slots, heap_swept_slot);
+  S(heap_free_slots, heap_free_slots);
   S(heap_tomb_pages, heap_tomb_page_length);
   S(heap_final_slots, heap_final_slot);
 
@@ -218,7 +218,7 @@ Init_oobgc()
 
   id_start = rb_intern("start");
   _oobgc.heap_obj_limit =
-    NUM2SIZET(rb_hash_aref(rb_const_get(rb_mGC, rb_intern("INTERNAL_CONSTANTS")), ID2SYM(rb_intern("HEAP_OBJ_LIMIT"))));
+    NUM2SIZET(rb_hash_aref(rb_const_get(rb_mGC, rb_intern("INTERNAL_CONSTANTS")), ID2SYM(rb_intern("HEAP_PAGE_OBJ_LIMIT"))));
 
   minor_gc_args = rb_hash_new();
   rb_hash_aset(minor_gc_args, ID2SYM(rb_intern("full_mark")), Qfalse);
