@@ -68,22 +68,39 @@ gc_event_i(VALUE tpval, void *data)
 static VALUE
 install()
 {
+  if (_oobgc.installed) {
+    return Qtrue;
+  }
+
   rb_event_flag_t events =
     RUBY_INTERNAL_EVENT_GC_START    |
     RUBY_INTERNAL_EVENT_GC_END_MARK |
     RUBY_INTERNAL_EVENT_GC_END_SWEEP;
 
-  if (_oobgc.installed)
-    return Qfalse;
-
   if (!_oobgc.tpval) {
     _oobgc.tpval = rb_tracepoint_new(0, events, gc_event_i, (void *)0);
-    rb_ivar_set(mOOB, rb_intern("tpval"), _oobgc.tpval);
   }
 
   rb_tracepoint_enable(_oobgc.tpval);
-  _oobgc.installed = 1;
-  return Qtrue;
+  _oobgc.installed = !NIL_P(_oobgc.tpval) && rb_tracepoint_enabled_p(_oobgc.tpval);
+  return _oobgc.installed ? Qtrue : Qfalse;
+}
+
+static VALUE
+is_installed()
+{
+  return _oobgc.tpval && rb_tracepoint_enabled_p(_oobgc.tpval) ? Qtrue : Qfalse;
+}
+
+static VALUE
+uninstall()
+{
+  if (!_oobgc.installed || NIL_P(_oobgc.tpval)) {
+    return Qtrue;
+  }
+  rb_tracepoint_disable(_oobgc.tpval);
+  _oobgc.installed = !NIL_P(_oobgc.tpval) && rb_tracepoint_enabled_p(_oobgc.tpval);
+  return rb_tracepoint_enabled_p(_oobgc.tpval) ? Qfalse : Qtrue;
 }
 
 static void
@@ -188,6 +205,8 @@ Init_oobgc()
   // rb_autoload(mOOB, rb_intern_const("UnicornMiddleware"), "gctools/oobgc/unicorn_middleware.rb");
 
   rb_define_singleton_method(mOOB, "setup", install, 0);
+  rb_define_singleton_method(mOOB, "setup?", is_installed, 0);
+  rb_define_singleton_method(mOOB, "teardown", uninstall, 0);
   rb_define_singleton_method(mOOB, "run", oobgc, 0);
   rb_define_singleton_method(mOOB, "stat", oobgc_stat, 1);
   rb_define_singleton_method(mOOB, "clear", oobgc_clear, 0);

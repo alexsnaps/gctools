@@ -3,6 +3,20 @@ require 'gctools/oobgc'
 require 'json'
 
 class TestOOBGC < Minitest::Test
+
+  def test_is_lifecycled
+    assert_equal false, GC::OOB.setup?
+    assert_equal true, GC::OOB.setup
+    assert_equal true, GC::OOB.setup?
+    assert_equal true, GC::OOB.setup
+    assert_equal true, GC::OOB.setup?
+    assert_equal true, GC::OOB.teardown
+    assert_equal false, GC::OOB.setup?
+    assert_equal true, GC::OOB.teardown
+    assert_equal false, GC::OOB.setup?
+
+  end
+
   # def setup
   #   GC::OOB.setup
   #   GC::OOB.clear
