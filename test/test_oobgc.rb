@@ -20,12 +20,7 @@ class TestOOBGC < Minitest::Test
     assert_equal false, GC::OOB.setup?
     assert_equal false, GC::OOB.run
   end
-
-  # def setup
-  #   GC::OOB.setup
-  #   GC::OOB.clear
-  # end
-
+  
   def test_oob_sweep
     assert_equal true, GC::OOB.setup
     GC::OOB.clear
